@@ -1,0 +1,461 @@
+// Hooks in original code
+set inheritanceResultPersonaAddSkill 0x00313034
+set crossPressNormalFusion 0x002EF978
+set normalFusionInitIgorTalk 0x002f05dc
+set normalFusionHandlerDefaultStateJump 0x002ed474
+set normalFusionHandlerStateJump 0x002ed490
+set normalFusionHandlerEnd 0x002f0ec0
+
+// Original function definitions
+set CombineDetailsProc_getShdPersonaStatusDraw 0x003147d0
+set ShdPersonaStatusDraw_isInSkillInfo 0x0011c610
+
+set MessageWindow_open 0x00310960
+set MessageWindow_isClosed 0x002bb680
+set MessageWindow_free 0x002bb550
+set MessageWindow_refresh 0x002bbcf0
+
+set ArrayList_create 0x002e6f00
+set ArrayList_add 0x002e6f90
+set ArrayList_delete 0x002e7010
+set ArrayList_free 0x002e7190
+
+set memcpy 0x0043f810
+
+set getGlobalPersonaInfo 0x002e48a0
+set findSkillIndex 0x0010ce10
+
+// Code caves for custom code
+set normalFusionGoBackPersonaResult 0x0094BF30
+set normalFusionInitCustomIgorTalk 0x0094C1E4
+set normalFusionHandlerCustomStateJump 0x0094C214
+set normalFusionDialogueInheritanceState 0x0094C250
+set normalFusionInheritanceState 0x0094C2A0
+set createInheritanceArrayList 0x0094C440
+
+// Constants
+set INHERITANCE_DIALOGUE_STATE 0x38
+set INHERITANCE_STATE 0x39
+
+
+ASM_START inheritanceResultPersonaAddSkill
+    li $a1, 0xFFFF // Dummy skill id, does not show skill in view
+ASM_END
+
+ASM_START crossPressNormalFusion
+    jal normalFusionGoBackPersonaResult
+    nop
+ASM_END
+
+ASM_START normalFusionGoBackPersonaResult
+    addiu $sp, $sp, -0xD0
+    sd $ra, 0xC0($sp)
+    lw $a0, 0x148($s2) // Get CombineDetailsProc ref
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop
+    move $a0, $v0
+    jal ShdPersonaStatusDraw_isInSkillInfo
+    nop
+    beq $v0, $zero, checkPersonaDetail
+    nop
+
+    // Close skill info window ourselves
+    lw $a0, 0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop
+    move $a0, $v0
+    li $a1, 0x1
+    jal 0x0011C6E0 // Send close notif to ShdPersonaStatusDraw
+    nop
+    lw $a0, 0x148($s2)
+    li $a1, 0x1
+    jal 0x00314740 // Send close notif to CombineDetailsProc
+    nop
+
+    // Move persona detail to result persona
+    checkPersonaDetail: lb $v0,0x122(s2) // current index
+    li $v1, 0x2
+    beq $v0, $v1, gotoNextFusionState
+    nop
+    // Next state we'll want is 2 (result persona), rest of code is asm code to visually move the index ported to clps2c
+    li $v0, 0x2
+    sb $v0, 0x122($s2)
+    li $a0, 0x151
+    jal 0x002b6150
+    nop
+    daddu $s0, $v0, $zero
+    daddu s0,v0,zero
+    lb $v1,0x122($s2)
+    sll $v0,$v1,0x03
+    addu $v0,$v0,$v1
+    sll $v0,$v0,0x03
+    subu $v0,$v0,v1
+    sll $v0,$v0,0x01
+    addiu $v0,$v0,0x6A
+    mtc1 $v0,$f00
+    nop 
+    cvt.s.w $f12,$f00
+    lui $v0,0x4180
+    mtc1 $v0,$f13
+    addiu $a0,$sp,0x188
+    jal 0x002b2970
+    nop
+    addiu $a0,$zero,0x151
+    ldr $a1,0x38($s0)
+    ldl $a1,0x3F($s0)
+    ld $a2,0x188($sp)
+    addiu $a3,$zero,0x1
+    addiu $t0,$zero,0x4
+    daddu $t1,$zero,$zero
+    jal 0x002b69f0
+    nop 
+    addiu $a0,$zero,0x2E0
+    jal 0x002b6150
+    nop 
+    daddu $s0,$v0,$zero
+    lb $v1,0x122($s2)
+    sll $v0,$v1,0x03
+    addu $v0,$v0,$v1
+    sll $v0,$v0,0x03
+    subu $v0,$v0,$v1
+    sll $v0,$v0,0x01
+    addiu $v0,$v0,0x6A
+    mtc1 $v0,$f00
+    nop 
+    cvt.s.w $f12,$f00
+    lui $v0,0x4180
+    mtc1 $v0,$f13
+    addiu $a0,$sp,0x180
+    jal 0x002b2970
+    nop 
+    addiu $a0,$zero,0x2E0
+    ldr $a1,0x38($s0)
+    ldl $a1,0x3F($s0)
+    ld $a2,0x180($sp)
+    addiu $a3,$zero,0x1
+    addiu $t0,$zero,0x4
+    daddu $t1,$zero,$zero
+    jal 0x002b69f0
+    nop 
+    lw $a0,0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop 
+    daddu $s0,$v0,$zero
+    addiu $a0,$zero,0xFF
+    daddu $a1,$a0,$zero
+    daddu $a2,$a0,$zero
+    daddu $a3,$a0,$zero
+    jal 0x002b2a30
+    nop 
+    daddu $a0,$s0,$zero
+    daddu $a1,$v0,$zero
+    jal 0x0011d140
+    nop 
+    lb $a1,0x2FA($s2)
+    lb $a0,0x2F9($s2)
+    jal 0x002e48a0
+    nop 
+    lbu $s0,0x4($v0)
+    addiu $a0,$zero,0x1
+    jal 0x00104c70
+    nop 
+    andi $v0,$v0,0x00FF
+    slt $at,$v0,$s0
+    beq $at,$zero, firstIf
+    nop 
+    lw $a0,0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop 
+    daddu $s0,$v0,$zero
+    addiu $a0,$zero,0x14
+    daddu $a1,$a0,$zero
+    daddu $a2,$a0,$zero
+    addiu $a3,$zero,0xFF
+    jal 0x002b2a30
+    nop 
+    daddu $a0,$s0,$zero
+    daddu $a1,$v0,$zero
+    jal 0x0011d140
+    nop
+    firstIf: lb $s0,0x2FA($s2)
+    lb $a0,0x2F9($s2)
+    daddu $a1,$s0,$zero
+    jal 0x002e48a0
+    nop 
+    daddu $s1,$v0,$zero
+    lb $a0,0x2F9($s2)
+    jal 0x002e4870
+    nop 
+    dsll32 $v1,$s0,0x18
+    dsra32 $v1,$v1,0x18
+    addu $s0,$v0,$v1
+    lb $a1,0x2FA($s2)
+    lb $a0,0x2F9($s2)
+    jal 0x002e48a0
+    nop 
+    lhu $v1,0x2($v0)
+    sll $v0,$v1,0x03
+    subu $v0,$v0,$v1
+    sll $v1,$v0,0x01
+    lw $v0,-0x4C2C($gp)
+    addu $v0,$v1,$v0
+    lbu $a0,0x2($v0)
+    jal 0x00247770
+    nop 
+    dsll32 $s3,$v0,0x10
+    dsra32 $s3,$s3,0x10
+    lb $a1,0x2FA($s2)
+    lb $a0,0x2F9($s2)
+    jal 0x002e48a0
+    nop 
+    daddu $a0,$s3,$zero
+    daddu $a1,$v0,$zero
+    daddu $a2,$zero,$zero
+    jal 0x00311930
+    nop 
+    lw $a0,0x148(s2)
+    daddu $a1,$s1,$zero
+    lb $a2,0x2E4($s0)
+    daddu $a3,$v0,$zero
+    addiu $t0,$zero,0x1
+    jal 0x003144d0
+    nop
+
+    gotoNextFusionState: li $v0, 0x2f // Go to fusion next state
+    sb $v0, 0x1($s2)
+    ld $ra, 0xC0($sp)
+    jr $ra
+    addiu $sp, $sp, 0xD0
+ASM_END
+
+ASM_START normalFusionInitIgorTalk
+    j normalFusionInitCustomIgorTalk
+    nop
+ASM_END
+
+ASM_START normalFusionInitCustomIgorTalk
+    move $a0, $s4
+    li $a1, 0x1
+    move $a2, $zero
+    jal MessageWindow_open
+    nop
+    li $v1, INHERITANCE_DIALOGUE_STATE
+    sb $v1, 0x1($s2)
+    j normalFusionHandlerEnd
+    nop
+ASM_END
+
+ASM_START normalFusionHandlerDefaultStateJump
+    nop // We will handle default case ourselves
+    nop
+ASM_END
+
+ASM_START normalFusionHandlerStateJump
+    j normalFusionHandlerCustomStateJump
+    nop
+ASM_END
+
+ASM_START normalFusionHandlerCustomStateJump
+    lbu $a0, 0x1($s2)
+    li $a1, INHERITANCE_DIALOGUE_STATE
+    bne $a0, $a1, notDialogueInheritanceState
+    nop
+    j normalFusionDialogueInheritanceState
+    nop
+    notDialogueInheritanceState: li $a1, INHERITANCE_STATE
+    bne $a0, $a1, notInheritanceState
+    nop
+    j normalFusionInheritanceState
+    nop
+    notInheritanceState: move $a0, $s4
+    jr $v1
+    nop
+ASM_END
+
+ASM_START normalFusionDialogueInheritanceState
+    lb $a0, 0xd($s2)
+    jal MessageWindow_isClosed
+    nop
+    bne $v0, $zero, windowNotClosed
+    nop
+    lb $a0, 0xd($s2)
+    jal MessageWindow_free // Window closed, goto inheritance menu state
+    nop
+    li $v1, INHERITANCE_STATE
+    sb $v1, 0x1($s2)
+    j normalFusionHandlerEnd
+    nop
+    windowNotClosed: lb $a0, 0xd($s2) // Refresh window while opened
+    jal MessageWindow_refresh
+    nop
+    j normalFusionHandlerEnd
+    nop
+ASM_END
+
+ASM_START normalFusionInheritanceState
+    addiu $sp,$sp,-0x60
+
+    move $a0, $zero
+    lb $a1, 0x128($s2)
+    jal getGlobalPersonaInfo // 1st persona
+    nop
+    addiu $a0, $sp, 0x30
+    move $a1, $v0
+    li $a2, 0x30
+    jal memcpy
+    nop
+
+    move $a0, $zero
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // 2nd persona
+    nop
+    addu $a0, $sp, $zero
+    move $a1, $v0
+    li $a2, 0x30
+    jal memcpy
+    nop
+
+    lh $a0, 0x2f9($s2)
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // Result persona
+    nop
+
+    move $a0, $v0
+    move $a1, $sp
+    li $a2, 0x2
+    jal createInheritanceArrayList // List created!! Should be saved maybe globally
+    nop
+
+    li $v1, 0x2d
+    sb $v1, 0x1($s2)
+    j normalFusionHandlerEnd
+    addiu $sp,$sp,0x60
+ASM_END
+
+// a0 -> resultPersona
+// a1 -> personasInFusion
+// a2 -> involvedPersonas
+// v0 -> returns ArrayList
+ASM_START createInheritanceArrayList
+    addiu $sp,$sp,-0xa0
+    sd $ra,0x90($sp)
+    sq $fp,0x80($sp)
+    sq $s7,0x70($sp)
+    sq $s6,0x60($sp)
+    sq $s5,0x50($sp)
+    sq $s4,0x40($sp)
+    sq $s3,0x30($sp)
+    sq $s2,0x20($sp)
+    sq $s1,0x10($sp)
+    sq $s0,0x0($sp)
+
+    move $s3, $a0
+    move $fp, $a1
+    move $s0, $a2
+    move $s6, $zero
+    jal ArrayList_create
+    nop
+    move $s2, $v0 // Our array list will be in s2
+    move $s1, $zero
+    dsll32 $s4,$s0,0x18
+    dsra32 $s4,$s4,0x18
+    b involvedPersonasForCondition
+    nop
+    involvedPersonasForInner: move $s0, $zero
+    sll $v0,$v1,0x01
+    addu $v0,$v0,$v1
+    sll $v0,$v0,0x04
+    addu $s5,$fp,$v0
+    b skillsForCondition
+    nop
+    skillsForInner: sll $v0,$v1,0x01
+    addu $v0,$s5,$v0
+    addiu $s7,$v0,0xC
+    lhu $a1,0xC($v0) // Load current iteration skill
+    beq $a1, $zero, skillsForNextIteration
+    nop
+    move $a0, $s3
+    jal findSkillIndex
+    nop
+    addiu $v1,$zero,-0x1
+    bne $v0, $v1, skillsForNextIteration
+    nop
+    // Skill not found in result persona, check if it can be inherited
+    lh $v0, 0x0($s7)
+    sll $v1,$v0,0x01
+    lw $v0,-0x4C4C($gp)
+    addu $v0,$v0,$v1
+    lb $v0,0x0($v0)
+    addiu $v1,$zero,-0x1
+    bne $v0, $v1, skillTypeFound
+    nop
+    li $v0, 0x12
+    skillTypeFound: lhu $a0, 0x2($s3)
+    sll $v1,$a0,0x03
+    subu $v1,$v1,$a0
+    sll $a0,$v1,0x01
+    lw $v1,-0x4C2C($gp)
+    addu $v1,$v1,$a0
+    lhu $a0,0xA($v1)
+    sll $v1,$a0,0x03
+    addu $v1,$v1,$a0
+    sll $v1,$v1,0x01
+    addu $v1,$v1,$a0
+    sll $a0,$v1,0x01
+    lui $v1,0x0064
+    addiu $v1,$v1,0x1C40
+    addu $v1,$v1,$a0
+    sll $v0,$v0,0x01
+    addu $v0,$v0,$v1
+    lh $a0,0x0($v0)
+    lui $v0,0x0064
+    addiu $v0,$v0,0x1E60
+    lh $v1, 0x0($s7)
+    addu $v0,$v0,$v1
+    lb $v1,0x0(v0)
+    beq $v1,zero, skillsForNextIteration // Skill cannot be inherited
+    nop
+    sll $v0,$a0,0x02
+    addu $v0,$v0,$a0
+    sll $v0,$v0,0x01
+    div $v0,$v1
+    mflo $v1
+    beq $v1, $zero, skillsForNextIteration // Skill cannot be inherited
+    nop
+    move $a0, $s2 // Load ArrayList ref
+    lh $a1, 0x0($s7) // Add current skill to inheritance list
+    jal ArrayList_add // Adds skill, if skill is duplicated, this function won't add another copy
+    nop
+    skillsForNextIteration: addiu $v0, $s0, 0x1 // Next skill for loop
+    dsll32 $s0,$v0,0x10
+    dsra32 $s0,$s0,0x10
+    skillsForCondition: dsll32 $v1,$s0,0x10
+    dsra32 $v1,$v1,0x10
+    slti $v0,$v1,0x0008
+    bne $v0,$zero,skillsForInner
+    nop
+    addiu $v0,$s1,0x1 // Next involved persona for loop
+    dsll32 $s1,$v0,0x10
+    dsra32 $s1,$s1,0x10
+    involvedPersonasForCondition: dsll32 $v1,$s1,0x10
+    dsra32 $v1,$v1,0x10
+    slt $v0,$v1,$s4
+    bne $v0,$zero,involvedPersonasForInner
+    nop
+
+    move $v0, $s2 // Return ArrayList of inheritance skills
+
+    lq $s0,0x0($sp)
+    lq $s1,0x10($sp)
+    lq $s2,0x20($sp)
+    lq $s3,0x30($sp)
+    lq $s4,0x40($sp)
+    lq $s5,0x50($sp)
+    lq $s6,0x60($sp)
+    lq $s7,0x70($sp)
+    lq $fp,0x80($sp)
+    ld $ra,0x90($sp)
+    addiu $sp,$sp,0xa0
+    jr $ra
+    nop
+ASM_END
