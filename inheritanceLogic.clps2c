@@ -235,7 +235,7 @@ ASM_END
 
 ASM_START normalFusionInitCustomIgorTalk
     move $a0, $s4
-    li $a1, 0x1
+    li $a1, 0x71
     move $a2, $zero
     jal MessageWindow_open
     nop
