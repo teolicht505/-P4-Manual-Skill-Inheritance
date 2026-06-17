@@ -5,6 +5,7 @@ set normalFusionInitIgorTalk 0x002f05dc
 set normalFusionHandlerDefaultStateJump 0x002ed474
 set normalFusionHandlerStateJump 0x002ed490
 set normalFusionHandlerEnd 0x002f0ec0
+set igorSocialLinkBonusTalk 0x002f05e8
 
 // Original function definitions
 set CombineDetailsProc_getShdPersonaStatusDraw 0x003147d0
@@ -20,18 +21,35 @@ set ArrayList_add 0x002e6f90
 set ArrayList_delete 0x002e7010
 set ArrayList_free 0x002e7190
 
+set SdkListState_init 0x00453670
+set SdkListState_setButtons 0x004538e0
+set SdkListState_checkButtonPress 0x00453960
+
+set Sound_play 0x0045af60
+
 set memcpy 0x0043f810
 
 set getGlobalPersonaInfo 0x002e48a0
 set findSkillIndex 0x0010ce10
+set playSdkListStateMoveSound 0x00354080
+
+// Original globals
+set BUTTON_PRESS 0x008c024e
 
 // Code caves for custom code
-set normalFusionGoBackPersonaResult 0x0094BF30
-set normalFusionInitCustomIgorTalk 0x0094C1E4
-set normalFusionHandlerCustomStateJump 0x0094C214
-set normalFusionDialogueInheritanceState 0x0094C250
-set normalFusionInheritanceState 0x0094C2A0
-set createInheritanceArrayList 0x0094C440
+set normalFusionGoBackPersonaResult 0x0094BF50
+set normalFusionInitCustomIgorTalk 0x0094C204
+set normalFusionHandlerCustomStateJump 0x0094C334
+set normalFusionDialogueInheritanceState 0x0094C570
+
+set normalFusionInheritanceState 0x0094C860
+set createInheritanceArrayList 0x0094CB60 // Will have to readjust offsets later...
+
+// Custom globals
+set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
+set globalInheritanceSubIndex 0x0094BEE4
+set globalInheritanceSuperIndex 0x0094BEE6
+set globalNumInheritableSkills 0x0094BEE8
 
 // Constants
 set INHERITANCE_DIALOGUE_STATE 0x38
@@ -234,6 +252,61 @@ ASM_START normalFusionInitIgorTalk
 ASM_END
 
 ASM_START normalFusionInitCustomIgorTalk
+    addiu $sp,$sp,-0x60
+
+    move $a0, $zero
+    lb $a1, 0x128($s2)
+    jal getGlobalPersonaInfo // 1st persona
+    nop
+    addiu $a0, $sp, 0x30
+    move $a1, $v0
+    li $a2, 0x30
+    jal memcpy
+    nop
+
+    move $a0, $zero
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // 2nd persona
+    nop
+    addu $a0, $sp, $zero
+    move $a1, $v0
+    li $a2, 0x30
+    jal memcpy
+    nop
+
+    lh $a0, 0x2f9($s2)
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // Result persona
+    nop
+
+    move $a0, $v0
+    move $a1, $sp
+    li $a2, 0x2
+    jal createInheritanceArrayList
+    nop
+    addiu $sp,$sp,0x60
+
+    bne $v1, $zero, gotoInheritanceStates
+    nop
+    move $a0, $v0
+    jal ArrayList_free // Free list, not needed anymore
+    nop
+    move $a0, $s0 // No skills to inherit!! Do original behaviour and jump to usual igor talk
+    jal 0x00105f50
+    nop
+    j igorSocialLinkBonusTalk
+    nop
+
+    gotoInheritanceStates: li $a0, globalInheritanceList // Save inheritance list globally for later, and init list values
+    sw $v0, 0x0($a0)
+    li $v0, globalNumInheritableSkills
+    sh $v1, 0x0($v0)
+    li $v0, globalInheritanceSubIndex
+    sh $zero, 0x0($v0)
+    li $v0, globalInheritanceSuperIndex
+    sh $zero, 0x0($v0)
+
+
     move $a0, $s4
     li $a1, 0x71
     move $a2, $zero
@@ -279,9 +352,10 @@ ASM_START normalFusionDialogueInheritanceState
     bne $v0, $zero, windowNotClosed
     nop
     lb $a0, 0xd($s2)
-    jal MessageWindow_free // Window closed, goto inheritance menu state
+    jal MessageWindow_free // Window closed
     nop
-    li $v1, INHERITANCE_STATE
+
+    li $v1, INHERITANCE_STATE // Goto inheritance menu state
     sb $v1, 0x1($s2)
     j normalFusionHandlerEnd
     nop
@@ -293,49 +367,91 @@ ASM_START normalFusionDialogueInheritanceState
 ASM_END
 
 ASM_START normalFusionInheritanceState
-    addiu $sp,$sp,-0x60
+    li $v0, globalInheritanceList
+    lw $v0, 0x0($v0)
 
+    li $a2, BUTTON_PRESS
+    lh $a1, 0x0($a2)
+    andi $v1, $a1, 0x20
+    beq $v1, $zero, circleNotPressed
+    nop
+    // CIRCLE BEHAVIOUR
     move $a0, $zero
-    lb $a1, 0x128($s2)
-    jal getGlobalPersonaInfo // 1st persona
-    nop
-    addiu $a0, $sp, 0x30
-    move $a1, $v0
-    li $a2, 0x30
-    jal memcpy
+    move $a1, $zero
+    move $a2, $zero
+    li $a3, 0x2
+    jal Sound_play
     nop
 
+    circleNotPressed: andi $v1, $a1, 0x40
+    beq $v1, $zero, crossNotPressed
+    nop
+    // CROSS BEHAVIOUR
     move $a0, $zero
-    lh $a1, 0x2fa($s2)
-    jal getGlobalPersonaInfo // 2nd persona
+    move $a1, $zero
+    move $a2, $zero
+    li $a3, 0x1
+    jal Sound_play
     nop
-    addu $a0, $sp, $zero
-    move $a1, $v0
-    li $a2, 0x30
-    jal memcpy
-    nop
-
-    lh $a0, 0x2f9($s2)
-    lh $a1, 0x2fa($s2)
-    jal getGlobalPersonaInfo // Result persona
-    nop
-
-    move $a0, $v0
-    move $a1, $sp
-    li $a2, 0x2
-    jal createInheritanceArrayList // List created!! Should be saved maybe globally
+    
+    crossNotPressed: addiu $sp,$sp,-0x30
+    move $a0, $sp
+    li $a1, 0x5 // Elements per page 
+    lh $a2, 0x60($v0) // Total elements
+    li $v1, globalInheritanceSubIndex
+    lh $a3, 0x0($v1) // Sub index
+    li $v1, globalInheritanceSuperIndex
+    lh $t0, 0x0($v1) // Super index
+    jal SdkListState_init
     nop
 
-    li $v1, 0x2d
+    move $a0, $sp
+    li $a1, 0x4000
+    li $a2, 0x1000
+    li $a3, 0x2000
+    li $t0, 0x8000
+    jal SdkListState_setButtons
+    nop
+
+    move $a0, $sp
+    jal SdkListState_checkButtonPress
+    nop
+
+    move $s1, $v0
+    blez $v0, keepInheritanceState
+    nop
+    // User moved the list, update sub/super indexes
+    lw $v0, 0x24($sp)
+    li $v1, globalInheritanceSubIndex
+    sh $v0, 0x0($v1)
+    lw $v0, 0x28($sp)
+    li $v1, globalInheritanceSuperIndex
+    sh $v0, 0x0($v1)
+
+    move $a0, $s1
+    jal playSdkListStateMoveSound
+    nop
+
+    keepInheritanceState: addiu $sp,$sp,0x30
+
+    // TODO REMEMBER TO FREE LIST AT THE FINAL STATE!!
+    //li $v0, globalInheritanceList
+    //lw $a0, 0x0($v0)
+    //sw $zero, 0x0($v0)
+    //jal ArrayList_free // Free list, not needed anymore
+    //nop
+
+    li $v1, INHERITANCE_STATE
     sb $v1, 0x1($s2)
     j normalFusionHandlerEnd
-    addiu $sp,$sp,0x60
+    nop
 ASM_END
 
 // a0 -> resultPersona
 // a1 -> personasInFusion
 // a2 -> involvedPersonas
 // v0 -> returns ArrayList
+// v1 -> returns Number of skills to inherit
 ASM_START createInheritanceArrayList
     addiu $sp,$sp,-0xa0
     sd $ra,0x90($sp)
@@ -443,7 +559,27 @@ ASM_START createInheritanceArrayList
     bne $v0,$zero,involvedPersonasForInner
     nop
 
-    move $v0, $s2 // Return ArrayList of inheritance skills
+    li $s1, 0xFFFF // Skill to search
+    move $a1, $zero
+    move $s0, $s3
+
+    daddu $v0,$zero,$zero
+    andi $a0,$s1,0xFFFF
+    bne $zero,$zero,whileCondition
+    nop 
+    whileInner: sll $v1,$v0,0x01
+    addu $v1,$s0,$v1
+    lhu $v1,0xC($v1)
+    bne $v1,$a0,notThisIndex
+    nop
+    addiu $a1, 0x1
+    notThisIndex: addiu $v0,$v0,0x1
+    whileCondition: slti $v1,$v0,0x0008
+    bne $v1,$zero,whileInner
+    nop 
+
+    endWhile: move $v0, $s2 // Return ArrayList of inheritance skills
+    move $v1, $a1 // Return number of inheritable skills
 
     lq $s0,0x0($sp)
     lq $s1,0x10($sp)
