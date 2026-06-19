@@ -6,6 +6,8 @@ set normalFusionHandlerDefaultStateJump 0x002ed474
 set normalFusionHandlerStateJump 0x002ed490
 set normalFusionHandlerEnd 0x002f0ec0
 set igorSocialLinkBonusTalk 0x002f05e8
+set igorSocialLinkBonusTalkConfirmation 0x002f068c
+set igorSocialLinkBonusTalkConfirmationEnd 0x002f0694
 
 // Original function definitions
 set CombineDetailsProc_getShdPersonaStatusDraw 0x003147d0
@@ -27,6 +29,7 @@ set SdkListState_checkButtonPress 0x00453960
 
 set Sound_play 0x0045af60
 
+set memset 0x0043f9c8
 set memcpy 0x0043f810
 
 set getGlobalPersonaInfo 0x002e48a0
@@ -43,17 +46,19 @@ set normalFusionHandlerCustomStateJump 0x0094C334
 set normalFusionDialogueInheritanceState 0x0094C570
 
 set normalFusionInheritanceState 0x0094C860
-set createInheritanceArrayList 0x0094CB60 // Will have to readjust offsets later...
+set createInheritanceArrayList 0x0094CE60 // Will have to readjust offsets later...
+set copySkillsToPersonaResult 0x0094D270
 
 // Custom globals
 set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
-set globalInheritanceSubIndex 0x0094BEE4
-set globalInheritanceSuperIndex 0x0094BEE6
-set globalNumInheritableSkills 0x0094BEE8
-set globalSelectedkills 0x0094BEEA
+set globalNumInheritableSkills 0x0094BEE4
+set globalInheritanceSubIndex 0x0094BEE8
+set globalInheritanceSuperIndex 0x0094BEEA
+set globalSelectedkills 0x0094BEEC
 set globalSkillsList 0x0094BEF0
 
 // Constants
+set PERSONA_INFO 0x2d
 set INHERITANCE_DIALOGUE_STATE 0x38
 set INHERITANCE_STATE 0x39
 
@@ -303,13 +308,11 @@ ASM_START normalFusionInitCustomIgorTalk
     sw $v0, 0x0($a0)
     li $v0, globalNumInheritableSkills
     sh $v1, 0x0($v0)
-    li $v0, globalInheritanceSubIndex
-    sh $zero, 0x0($v0)
-    li $v0, globalInheritanceSuperIndex
-    sh $zero, 0x0($v0)
-    li $v0, globalSelectedkills
-    sh $zero, 0x0($v0)
-
+    li $a0, globalInheritanceSubIndex
+    move $a1, $zero
+    li $a2, 0x18 // Size of rest of parameters
+    jal memset // Reset all parameters to 0
+    nop
 
     move $a0, $s4
     li $a1, 0x71
@@ -383,6 +386,73 @@ ASM_START normalFusionInheritanceState
     li $a3, 0x2
     jal Sound_play
     nop
+
+    li $a0, globalSelectedkills
+    lh $v0, 0x0($a0)
+    bne $v0, $zero, removeLastSkill
+    nop
+    li $a0, globalInheritanceList // We go back to previous menu, free inheritance list
+    lw $a0, 0x0($a0)
+    jal ArrayList_free
+    nop
+
+    li $v1, PERSONA_INFO
+    sb $v1, 0x1($s2)
+    j normalFusionHandlerEnd
+    nop
+    removeLastSkill: addi $v0, -0x1
+    sh $v0, 0x0($a0)
+    li $v1, globalSkillsList
+    sll $v0, $v0, 1
+    addu $v1, $v1, $v0
+    lh $a1, 0x0($v1) // Load skill we are about to delete
+    sh $zero, 0x0($v1) // Remove last skill from global skill list
+    li $v0, globalInheritanceList
+    lw $a0, 0x0($v0)
+    addi $a0, -0xC // Substract 0xc to be able to call findSkillIndex
+    jal findSkillIndex
+    nop
+    li $a1, globalInheritanceSubIndex
+    li $a2, globalInheritanceSuperIndex
+    li $v1, 0x5 // Visual list size
+
+    li $a2, 0x2
+    sub $a1, $v0, $a2
+    bgtz $a1, checkLastPage
+    nop
+
+    firstPageIndexing: li $v1, globalInheritanceSubIndex
+    sh $v0, 0x0($v1)
+    li $v1, globalInheritanceSuperIndex // First page cursor case
+    sh $zero, 0x0($v1)
+    b indexUpdated
+    nop
+
+    checkLastPage: li $v1, globalInheritanceList
+    lw $v1, 0x0($v1)
+    lh $v1, 0x60($v1)
+    addi $v1, -0x5
+    bltz $v1, firstPageIndexing
+    nop
+    sub $a2, $v1, $a1
+    bltz $a2, lastPageIndexing
+    nop
+
+    li $a2, 0x2
+    li $v0, globalInheritanceSubIndex // Centered cursor case
+    sh $a2, 0x0($v0)
+    li $v0, globalInheritanceSuperIndex
+    sh $a1, 0x0($v0)
+    b indexUpdated
+    nop
+
+    lastPageIndexing: sub $a2, $v0, $v1 // Last page cursor case
+    li $v0, globalInheritanceSubIndex
+    sh $a2, 0x0($v0)
+    li $v0, globalInheritanceSuperIndex
+    sh $v1, 0x0($v0)
+
+    indexUpdated: li $v1, 0x5
     j normalFusionHandlerEnd
     nop
 
@@ -390,16 +460,41 @@ ASM_START normalFusionInheritanceState
     beq $v1, $zero, crossNotPressed
     nop
     // CROSS BEHAVIOUR
+    li $v0, globalInheritanceList
+    lw $v0, 0x0($v0)
+
+    li $v1, globalInheritanceSubIndex
+    lh $v1, 0x0($v1)
+    li $a1, globalInheritanceSuperIndex
+    lh $a1, 0x0($a1)
+    addu $v1, $a1, $v1 // Get index
+    sll $a1, $v1, 1 // Each skill id is a half
+    addu $a1, $v0, $a1 // Get skill offset
+    lh $a1, 0x0($a1) // Get current skill id
+    li $a0, globalSkillsList
+    addi $a0, -0xC // Fake it's a persona info pointer to reuse find function
+    jal findSkillIndex
+    nop
+    li $v1, -0x1
+    beq $v0, $v1, canAddSkill // Skills cannot be repeated
+    nop
     move $a0, $zero
+    move $a1, $zero
+    move $a2, $zero
+    li $a3, 0x8
+    jal Sound_play
+    nop
+    b noFusionEnd
+    nop
+
+    canAddSkill: move $a0, $zero
     move $a1, $zero
     move $a2, $zero
     li $a3, 0x1
     jal Sound_play
     nop
-
     li $v0, globalInheritanceList
     lw $v0, 0x0($v0)
-
     li $v1, globalInheritanceSubIndex
     lh $v1, 0x0($v1)
     li $a1, globalInheritanceSuperIndex
@@ -416,6 +511,7 @@ ASM_START normalFusionInheritanceState
     sw $v1, 0x0($t0) // Store selected skill in our global list
     lh $v1, 0x0($a2)
     addiu $v1, 0x1
+
     li $a0, globalNumInheritableSkills
     lh $a0, 0x0($a0)
     sw $v1, 0x0($a2)
@@ -426,33 +522,11 @@ ASM_START normalFusionInheritanceState
     jal ArrayList_free // Free list, not needed anymore
     nop
 
-    lh $a0, 0x2f9($s2)
-    lh $a1, 0x2fa($s2)
-    jal getGlobalPersonaInfo // Get result persona
+    lb $a1, 0x2fa($s2)
+    lb $a0, 0x2f9($s2)
+    jal getGlobalPersonaInfo // Get result persona info for rank checking
     nop
-
-    addiu $sp, $sp, -0x10
-    sd $s0, 0x0($sp)
-    move $s0, $v0 // Save result persona pointer
-
-    move $a0, $v0
-    li $a1, 0xFFFF
-    jal findSkillIndex // Find first custom skill of inheritable skills
-    nop
-
-    li $a1, globalSkillsList // Memcpy source
-    move $a0, $s0
-    addiu $a0, 0xC // Add offset to skill array
-    sll $v0, $v0, 1 // Get offset of first custom skill index
-    addu $a0, $a0, $v0 // Get offset of the chosen skills, memcpy destination
-    li $a2, globalNumInheritableSkills
-    lh $a2, 0x0($a2)
-    sll $a2, $a2, 1 // Get number of bytes to copy
-    jal memcpy // Patch result persona skills with chosen ones
-    nop
-
-    ld $s0, 0x0($sp)
-    addiu $sp, $sp, 0x10
+    lhu $s0, 0x2($v0)
     move $a0, $s0 // Do original behaviour and jump to usual igor talk
     jal 0x00105f50
     nop
@@ -503,16 +577,6 @@ ASM_START normalFusionInheritanceState
     nop
 
     keepInheritanceState: addiu $sp,$sp,0x30
-
-    // TODO REMEMBER TO FREE LIST AT THE FINAL STATE!!
-    //li $v0, globalInheritanceList
-    //lw $a0, 0x0($v0)
-    //sw $zero, 0x0($v0)
-    //jal ArrayList_free // Free list, not needed anymore
-    //nop
-
-    li $v1, INHERITANCE_STATE
-    sb $v1, 0x1($s2)
     j normalFusionHandlerEnd
     nop
 ASM_END
@@ -663,5 +727,50 @@ ASM_START createInheritanceArrayList
     ld $ra,0x90($sp)
     addiu $sp,$sp,0xa0
     jr $ra
+    nop
+ASM_END
+
+ASM_START igorSocialLinkBonusTalkConfirmation
+    j copySkillsToPersonaResult
+    nop
+ASM_END
+
+ASM_START copySkillsToPersonaResult
+    li $v0, globalNumInheritableSkills
+    lh $v0, 0x0($v0)
+    beq $v0, $zero, gotoNextFusionState
+    nop
+
+    lh $a0, 0x2f9($s2)
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // Get result persona
+    nop
+
+    addiu $sp, $sp, -0x10
+    sd $s0, 0x0($sp)
+    move $s0, $v0 // Save result persona pointer
+
+    move $a0, $v0
+    li $a1, 0xFFFF
+    jal findSkillIndex // Find first custom skill of inheritable skills
+    nop
+
+    li $a1, globalSkillsList // Memcpy source
+    move $a0, $s0
+    addiu $a0, 0xC // Add offset to skill array
+    sll $v0, $v0, 1 // Get offset of first custom skill index
+    addu $a0, $a0, $v0 // Get offset of the chosen skills, memcpy destination
+    li $a2, globalNumInheritableSkills
+    lh $a2, 0x0($a2)
+    sll $a2, $a2, 1 // Get number of bytes to copy
+    jal memcpy // Patch result persona skills with chosen ones
+    nop
+
+    ld $s0, 0x0($sp)
+    addiu $sp, $sp, 0x10
+
+    gotoNextFusionState: li $v0, 0x33 // Begin fusion state
+    sb $v0, 0x1($s2)
+    j igorSocialLinkBonusTalkConfirmationEnd
     nop
 ASM_END
