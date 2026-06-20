@@ -1,13 +1,15 @@
 // Hooks in original code
 set inheritanceResultPersonaAddSkill 0x00313034
 set crossPressNormalFusion 0x002EF978
+set crossPressTriangleFusion 0x002f55ac
 set normalFusionInitIgorTalk 0x002f05dc
 set normalFusionHandlerDefaultStateJump 0x002ed474
 set normalFusionHandlerStateJump 0x002ed490
 set normalFusionHandlerEnd 0x002f0ec0
 set igorSocialLinkBonusTalk 0x002f05e8
 set igorSocialLinkBonusTalkConfirmation 0x002f068c
-set igorSocialLinkBonusTalkConfirmationEnd 0x002f0694
+set igorSocialLinkBonusTalkDenial 0x002f06ac
+set igorSocialLinkBonusTalkDenialEnd 0x002f06b4
 
 // Original function definitions
 set CombineDetailsProc_getShdPersonaStatusDraw 0x003147d0
@@ -41,26 +43,31 @@ set BUTTON_PRESS 0x008c024e
 
 // Code caves for custom code
 set normalFusionGoBackPersonaResult 0x0094BF50
-set normalFusionInitCustomIgorTalk 0x0094C204
-set normalFusionHandlerCustomStateJump 0x0094C334
-set normalFusionDialogueInheritanceState 0x0094C570
+set normalFusionInitCustomIgorTalk 0x0094C4AC
+set normalFusionHandlerCustomStateJump 0x0094C734
+set normalFusionDialogueInheritanceState 0x0094C970
 
-set normalFusionInheritanceState 0x0094C860
-set createInheritanceArrayList 0x0094CE60 // Will have to readjust offsets later...
-set copySkillsToPersonaResult 0x0094D270
+set normalFusionInheritanceState 0x0094CC60
+set createInheritanceArrayList 0x0094D260 // Will have to readjust offsets later...
+set goBackInheritanceMenu 0x0094E670
 
 // Custom globals
 set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
 set globalNumInheritableSkills 0x0094BEE4
 set globalInheritanceSubIndex 0x0094BEE8
 set globalInheritanceSuperIndex 0x0094BEEA
-set globalSelectedkills 0x0094BEEC
+set globalSelectedSkills 0x0094BEEC
+set globalIndexFirstInheritedSkill 0x0094BEEE
 set globalSkillsList 0x0094BEF0
 
 // Constants
-set PERSONA_INFO 0x2d
-set INHERITANCE_DIALOGUE_STATE 0x38
-set INHERITANCE_STATE 0x39
+set NORMAL_PERSONA_INFO_STATE 0x2d
+set NORMAL_IGOR_TALK_STATE 0x2f
+set NORMAL_PERSONA_FUSION_STATE 0x33
+set NORMAL_INHERITANCE_DIALOGUE_STATE 0x38
+set NORMAL_INHERITANCE_STATE 0x39
+
+set TRIANGLE_IGOR_TALK_STATE 0x48
 
 
 ASM_START inheritanceResultPersonaAddSkill
@@ -69,13 +76,34 @@ ASM_END
 
 ASM_START crossPressNormalFusion
     jal normalFusionGoBackPersonaResult
-    nop
+    li $a0, 0x2
 ASM_END
 
+ASM_START crossPressTriangleFusion
+    jal normalFusionGoBackPersonaResult
+    li $a0, 0x3
+ASM_END
+
+// a0 -> Result persona position
 ASM_START normalFusionGoBackPersonaResult
     addiu $sp, $sp, -0xD0
     sd $ra, 0xC0($sp)
-    lw $a0, 0x148($s2) // Get CombineDetailsProc ref
+    move $s6, $a0
+
+    li $v0, 0x2
+    bne $v0, $a0, notNormalFusion
+    nop
+    li $s5, NORMAL_IGOR_TALK_STATE
+    move $s7, $s2
+
+    notNormalFusion: li $v0, 0x3
+    bne $v0, $a0, notTriangleFusion
+    nop
+    li $s5, TRIANGLE_IGOR_TALK_STATE
+    move $s7, $s1
+    
+
+    notTriangleFusion: lw $a0, 0x148($s7) // Get CombineDetailsProc ref
     jal CombineDetailsProc_getShdPersonaStatusDraw
     nop
     move $a0, $v0
@@ -85,32 +113,31 @@ ASM_START normalFusionGoBackPersonaResult
     nop
 
     // Close skill info window ourselves
-    lw $a0, 0x148($s2)
+    lw $a0, 0x148($s7)
     jal CombineDetailsProc_getShdPersonaStatusDraw
     nop
     move $a0, $v0
     li $a1, 0x1
     jal 0x0011C6E0 // Send close notif to ShdPersonaStatusDraw
     nop
-    lw $a0, 0x148($s2)
+    lw $a0, 0x148($s7)
     li $a1, 0x1
     jal 0x00314740 // Send close notif to CombineDetailsProc
     nop
 
     // Move persona detail to result persona
-    checkPersonaDetail: lb $v0,0x122(s2) // current index
-    li $v1, 0x2
-    beq $v0, $v1, gotoNextFusionState
+    checkPersonaDetail: lb $v0,0x122($s7) // current index
+    beq $v0, $s6, gotoNextFusionState
     nop
-    // Next state we'll want is 2 (result persona), rest of code is asm code to visually move the index ported to clps2c
-    li $v0, 0x2
-    sb $v0, 0x122($s2)
+    // Next state we'll want is s6 (result persona), rest of code is asm code to visually move the index ported to clps2c
+    move $v0, $s6
+    sb $v0, 0x122($s7)
     li $a0, 0x151
     jal 0x002b6150
     nop
     daddu $s0, $v0, $zero
     daddu s0,v0,zero
-    lb $v1,0x122($s2)
+    lb $v1,0x122($s7)
     sll $v0,$v1,0x03
     addu $v0,$v0,$v1
     sll $v0,$v0,0x03
@@ -138,7 +165,7 @@ ASM_START normalFusionGoBackPersonaResult
     jal 0x002b6150
     nop 
     daddu $s0,$v0,$zero
-    lb $v1,0x122($s2)
+    lb $v1,0x122($s7)
     sll $v0,$v1,0x03
     addu $v0,$v0,$v1
     sll $v0,$v0,0x03
@@ -162,7 +189,7 @@ ASM_START normalFusionGoBackPersonaResult
     daddu $t1,$zero,$zero
     jal 0x002b69f0
     nop 
-    lw $a0,0x148($s2)
+    lw $a0,0x148($s7)
     jal CombineDetailsProc_getShdPersonaStatusDraw
     nop 
     daddu $s0,$v0,$zero
@@ -176,8 +203,8 @@ ASM_START normalFusionGoBackPersonaResult
     daddu $a1,$v0,$zero
     jal 0x0011d140
     nop 
-    lb $a1,0x2FA($s2)
-    lb $a0,0x2F9($s2)
+    lb $a1,0x2FA($s7)
+    lb $a0,0x2F9($s7)
     jal 0x002e48a0
     nop 
     lbu $s0,0x4($v0)
@@ -188,7 +215,7 @@ ASM_START normalFusionGoBackPersonaResult
     slt $at,$v0,$s0
     beq $at,$zero, firstIf
     nop 
-    lw $a0,0x148($s2)
+    lw $a0,0x148($s7)
     jal CombineDetailsProc_getShdPersonaStatusDraw
     nop 
     daddu $s0,$v0,$zero
@@ -202,20 +229,20 @@ ASM_START normalFusionGoBackPersonaResult
     daddu $a1,$v0,$zero
     jal 0x0011d140
     nop
-    firstIf: lb $s0,0x2FA($s2)
-    lb $a0,0x2F9($s2)
+    firstIf: lb $s0,0x2FA($s7)
+    lb $a0,0x2F9($s7)
     daddu $a1,$s0,$zero
     jal 0x002e48a0
     nop 
     daddu $s1,$v0,$zero
-    lb $a0,0x2F9($s2)
+    lb $a0,0x2F9($s7)
     jal 0x002e4870
     nop 
     dsll32 $v1,$s0,0x18
     dsra32 $v1,$v1,0x18
     addu $s0,$v0,$v1
-    lb $a1,0x2FA($s2)
-    lb $a0,0x2F9($s2)
+    lb $a1,0x2FA($s7)
+    lb $a0,0x2F9($s7)
     jal 0x002e48a0
     nop 
     lhu $v1,0x2($v0)
@@ -229,8 +256,8 @@ ASM_START normalFusionGoBackPersonaResult
     nop 
     dsll32 $s3,$v0,0x10
     dsra32 $s3,$s3,0x10
-    lb $a1,0x2FA($s2)
-    lb $a0,0x2F9($s2)
+    lb $a1,0x2FA($s7)
+    lb $a0,0x2F9($s7)
     jal 0x002e48a0
     nop 
     daddu $a0,$s3,$zero
@@ -238,7 +265,7 @@ ASM_START normalFusionGoBackPersonaResult
     daddu $a2,$zero,$zero
     jal 0x00311930
     nop 
-    lw $a0,0x148(s2)
+    lw $a0,0x148(s7)
     daddu $a1,$s1,$zero
     lb $a2,0x2E4($s0)
     daddu $a3,$v0,$zero
@@ -246,12 +273,13 @@ ASM_START normalFusionGoBackPersonaResult
     jal 0x003144d0
     nop
 
-    gotoNextFusionState: li $v0, 0x2f // Go to fusion next state
-    sb $v0, 0x1($s2)
+    gotoNextFusionState: sb $s5, 0x1($s7) // Go to fusion next state
     ld $ra, 0xC0($sp)
     jr $ra
     addiu $sp, $sp, 0xD0
 ASM_END
+
+
 
 ASM_START normalFusionInitIgorTalk
     j normalFusionInitCustomIgorTalk
@@ -286,6 +314,7 @@ ASM_START normalFusionInitCustomIgorTalk
     jal getGlobalPersonaInfo // Result persona
     nop
 
+    move $s5, $v0 // Save result persona for later
     move $a0, $v0
     move $a1, $sp
     li $a2, 0x2
@@ -314,12 +343,19 @@ ASM_START normalFusionInitCustomIgorTalk
     jal memset // Reset all parameters to 0
     nop
 
+    move $a0, $s5
+    li $a1, -0x1
+    jal findSkillIndex // Find index of first inheritance skill
+    nop
+    li $v1, globalIndexFirstInheritedSkill
+    sh $v0, 0x0($v1)
+
     move $a0, $s4
     li $a1, 0x71
     move $a2, $zero
     jal MessageWindow_open
     nop
-    li $v1, INHERITANCE_DIALOGUE_STATE
+    li $v1, NORMAL_INHERITANCE_DIALOGUE_STATE
     sb $v1, 0x1($s2)
     j normalFusionHandlerEnd
     nop
@@ -337,12 +373,12 @@ ASM_END
 
 ASM_START normalFusionHandlerCustomStateJump
     lbu $a0, 0x1($s2)
-    li $a1, INHERITANCE_DIALOGUE_STATE
+    li $a1, NORMAL_INHERITANCE_DIALOGUE_STATE
     bne $a0, $a1, notDialogueInheritanceState
     nop
     j normalFusionDialogueInheritanceState
     nop
-    notDialogueInheritanceState: li $a1, INHERITANCE_STATE
+    notDialogueInheritanceState: li $a1, NORMAL_INHERITANCE_STATE
     bne $a0, $a1, notInheritanceState
     nop
     j normalFusionInheritanceState
@@ -362,7 +398,7 @@ ASM_START normalFusionDialogueInheritanceState
     jal MessageWindow_free // Window closed
     nop
 
-    li $v1, INHERITANCE_STATE // Goto inheritance menu state
+    li $v1, NORMAL_INHERITANCE_STATE // Goto inheritance menu state
     sb $v1, 0x1($s2)
     j normalFusionHandlerEnd
     nop
@@ -387,36 +423,78 @@ ASM_START normalFusionInheritanceState
     jal Sound_play
     nop
 
-    li $a0, globalSelectedkills
-    lh $v0, 0x0($a0)
-    bne $v0, $zero, removeLastSkill
+    li $a0, globalSelectedSkills
+    lh $s5, 0x0($a0)
+    bne $s5, $zero, removeLastSkill
     nop
     li $a0, globalInheritanceList // We go back to previous menu, free inheritance list
     lw $a0, 0x0($a0)
     jal ArrayList_free
     nop
 
-    li $v1, PERSONA_INFO
+    li $v1, NORMAL_PERSONA_INFO_STATE
     sb $v1, 0x1($s2)
     j normalFusionHandlerEnd
     nop
-    removeLastSkill: addi $v0, -0x1
-    sh $v0, 0x0($a0)
-    li $v1, globalSkillsList
-    sll $v0, $v0, 1
-    addu $v1, $v1, $v0
-    lh $a1, 0x0($v1) // Load skill we are about to delete
-    sh $zero, 0x0($v1) // Remove last skill from global skill list
-    li $v0, globalInheritanceList
-    lw $a0, 0x0($v0)
-    addi $a0, -0xC // Substract 0xc to be able to call findSkillIndex
-    jal findSkillIndex
-    nop
-    li $a1, globalInheritanceSubIndex
-    li $a2, globalInheritanceSuperIndex
-    li $v1, 0x5 // Visual list size
+    removeLastSkill: addi $s5, -0x1
+    sh $s5, 0x0($a0)
 
-    li $a2, 0x2
+
+    li $v0, globalInheritanceList
+    lw $v0, 0x0($v0)
+
+    lh $a0, 0x2f9($s2)
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // Get result persona
+    nop
+
+    addiu $v0, $v0, 0xC
+    li $v1, globalIndexFirstInheritedSkill
+    lh $v1, 0x0($v1)
+    addu $s7, $s5, $v1
+    sll $v1, $s7, 1
+    addu $v0, $v1, $v0
+    li $v1, 0xFFFF
+    sh $v1, 0x0($v0) // Reset inheritance blank skill in persona result
+
+    lw $a1, 0x148($s2)
+    lw $a1, 0x38($a1)
+    lw $a1, 0x4($a1)
+    lw $a1, 0x38($a1)
+    addiu $a1, $a1, 0x8E // Get result persona visual skills pointers
+    sll  $t0, $s7, 3
+    sll  $t1, $s7, 2
+    addu $v0, $t0, $t1 // Get offset of first custom skill index
+    addu $a1, $a1, $v0
+    li $v1, 0xFFFF
+    sh $v1, 0x0($a1) // Reset skill in persona view
+
+    li $v0, globalSkillsList
+    sll $v1, $s5, 1
+    addu $v0, $v0, $v1
+    lh $s6, 0x0($v0) // Retrieve skill we are about to delete
+    sh $zero, 0x0($v0) // Reset last skill of our global inherited skills
+
+    li $v1, globalInheritanceList
+    lw $v1, 0x0($v1)
+    move $a0, $zero
+    nextElement: sll $a1, $a0, 1
+    addu $v0, $v1, $a1
+    lh $v0, 0x0($v0)
+    li $a2, -0x1
+    bne $v0, $a2, checkSkill
+    nop
+    move $v0, $zero
+    b calculateIndex
+    nop
+    checkSkill: beq $v0, $s6, skillFound // Skill we deleted found, calculate index
+    nop
+    addiu $a0, 0x1
+    b nextElement
+    nop
+
+    skillFound: move $v0, $a0
+    calculateIndex: li $a2, 0x2
     sub $a1, $v0, $a2
     bgtz $a1, checkLastPage
     nop
@@ -502,19 +580,46 @@ ASM_START normalFusionInheritanceState
     addu $v1, $a1, $v1 // Get index
     sll $a1, $v1, 1 // Each skill id is a half
     addu $a1, $v0, $a1 // Get skill offset
-    lh $v1, 0x0($a1) // Get current skill id
-    li $a2, globalSelectedkills
+    lh $s5, 0x0($a1) // Get current skill id
+    li $a2, globalSelectedSkills
     lh $a1, 0x0($a2) // Get current index from selected skills
     sll $a1, $a1, 1 // Each skill id is a half
     li $t0, globalSkillsList
     addu $t0, $a1, $t0
-    sw $v1, 0x0($t0) // Store selected skill in our global list
+    sw $s5, 0x0($t0) // Store selected skill in our global list
+
+    lh $a0, 0x2f9($s2)
+    lh $a1, 0x2fa($s2)
+    jal getGlobalPersonaInfo // Get result persona
+    nop
+
+    move $s6, $v0 // Save result persona pointer
+
+    move $a0, $v0
+    li $a1, 0xFFFF
+    jal findSkillIndex // Find first custom skill of inheritable skills
+    nop
+
+    sll $a1, $v0, 1
+    addu $v1, $s6, $a1
+    addiu $v1, $v1, 0xC
+    sh $s5, 0x0($v1) // Store skill in persona result
+    lw $a1, 0x148($s2)
+    lw $a1, 0x38($a1)
+    lw $a1, 0x4($a1)
+    lw $a1, 0x38($a1)
+    addiu $a1, $a1, 0x8E // Get result persona visual skills pointers
+    sll  $t0, $v0, 3
+    sll  $t1, $v0, 2
+    addu $v0, $t0, $t1 // Get offset of first custom skill index
+    addu $a1, $a1, $v0
+    sh $s5, 0x0($a1) // Store skill in persona view
+    
     lh $v1, 0x0($a2)
     addiu $v1, 0x1
-
     li $a0, globalNumInheritableSkills
     lh $a0, 0x0($a0)
-    sw $v1, 0x0($a2)
+    sh $v1, 0x0($a2)
     bne $v1, $a0, noFusionEnd
     nop
 
@@ -731,46 +836,61 @@ ASM_START createInheritanceArrayList
 ASM_END
 
 ASM_START igorSocialLinkBonusTalkConfirmation
-    j copySkillsToPersonaResult
+    li $v0, NORMAL_PERSONA_FUSION_STATE
+    sb $v0, 0x1($s2)
+ASM_END
+
+ASM_START igorSocialLinkBonusTalkDenial
+    j goBackInheritanceMenu
     nop
 ASM_END
 
-ASM_START copySkillsToPersonaResult
-    li $v0, globalNumInheritableSkills
-    lh $v0, 0x0($v0)
-    beq $v0, $zero, gotoNextFusionState
-    nop
+ASM_START goBackInheritanceMenu
+    li $a0, globalSelectedSkills
+    lh $s5, 0x0($a0)
+    addi $s5, -0x1
+    sh $s5, 0x0($a0)
+    li $v1, globalSkillsList
+    sll $v0, $v0, 1
+    addu $v1, $v1, $v0
+    lh $s6, 0x0($v1) // Load skill we are about to delete
+
+    li $v0, globalInheritanceList
+    lw $v0, 0x0($v0)
 
     lh $a0, 0x2f9($s2)
     lh $a1, 0x2fa($s2)
     jal getGlobalPersonaInfo // Get result persona
     nop
 
-    addiu $sp, $sp, -0x10
-    sd $s0, 0x0($sp)
-    move $s0, $v0 // Save result persona pointer
+    addiu $v0, $v0, 0xC
+    li $v1, globalIndexFirstInheritedSkill
+    lh $v1, 0x0($v1)
+    addu $s7, $s5, $v1
+    sll $v1, $s7, 1
+    addu $v0, $v1, $v0
+    li $v1, 0xFFFF
+    sh $v1, 0x0($v0) // Reset inheritance blank skill in persona result
 
-    move $a0, $v0
-    li $a1, 0xFFFF
-    jal findSkillIndex // Find first custom skill of inheritable skills
-    nop
+    lw $a1, 0x148($s2)
+    lw $a1, 0x38($a1)
+    lw $a1, 0x4($a1)
+    lw $a1, 0x38($a1)
+    addiu $a1, $a1, 0x8E // Get result persona visual skills pointers
+    sll  $t0, $s7, 3
+    sll  $t1, $s7, 2
+    addu $v0, $t0, $t1 // Get offset of first custom skill index
+    addu $a1, $a1, $v0
+    li $v1, 0xFFFF
+    sh $v1, 0x0($a1) // Reset skill in persona view
 
-    li $a1, globalSkillsList // Memcpy source
-    move $a0, $s0
-    addiu $a0, 0xC // Add offset to skill array
-    sll $v0, $v0, 1 // Get offset of first custom skill index
-    addu $a0, $a0, $v0 // Get offset of the chosen skills, memcpy destination
-    li $a2, globalNumInheritableSkills
-    lh $a2, 0x0($a2)
-    sll $a2, $a2, 1 // Get number of bytes to copy
-    jal memcpy // Patch result persona skills with chosen ones
-    nop
+    li $v0, globalSkillsList
+    sll $v1, $s5, 1
+    addu $v0, $v0, $v1
+    sh $zero, 0x0($v0) // Reset last skill of our global inherited skills
 
-    ld $s0, 0x0($sp)
-    addiu $sp, $sp, 0x10
-
-    gotoNextFusionState: li $v0, 0x33 // Begin fusion state
+    li $v0, NORMAL_INHERITANCE_STATE
     sb $v0, 0x1($s2)
-    j igorSocialLinkBonusTalkConfirmationEnd
+    j igorSocialLinkBonusTalkDenialEnd
     nop
 ASM_END
