@@ -2,14 +2,35 @@
 set inheritanceResultPersonaAddSkill 0x00313034
 set crossPressNormalFusion 0x002EF978
 set crossPressTriangleFusion 0x002f55ac
+set crossPressCrossPlusFusion 0x002f8e3c
+
 set normalFusionInitIgorTalk 0x002f05dc
+set triangleFusionInitIgorTalk 0x002f6394
+set crossPlusFusionInitIgorTalk 0x002f9818
+
 set normalFusionHandlerDefaultStateJump 0x002ed474
+set triangleFusionHandlerDefaultStateJump 0x002f0f4c
+set crossPlusFusionHandlerDefaultStateJump 0x002f6d34
+
 set normalFusionHandlerStateJump 0x002ed490
+set triangleFusionHandlerStateJump 0x002f0f68
+set crossPlusFusionHandlerStateJump 0x002f6d50
+
 set normalFusionHandlerEnd 0x002f0ec0
-set igorSocialLinkBonusTalk 0x002f05e8
-set igorSocialLinkBonusTalkConfirmation 0x002f068c
-set igorSocialLinkBonusTalkDenial 0x002f06ac
-set igorSocialLinkBonusTalkDenialEnd 0x002f06b4
+set triangleFusionHandlerEnd 0x002f6cb0
+set crossPlusFusionHandlerEnd 0x002f9bec
+
+set normalIgorSocialLinkBonusTalk 0x002f05e8
+set triangleIgorSocialLinkBonusTalk 0x002f63a0
+set crossPlusIgorSocialLinkBonusTalk 0x002f9824
+
+set normalIgorSocialLinkBonusTalkDenial 0x002f06ac
+set triangleIgorSocialLinkBonusTalkDenial 0x002f6464
+set crossPlusIgorSocialLinkBonusTalkDenial 0x002f98e8
+
+set normalFusionBegin 0x002f069c
+set triangleFusionBegin 0x002f6454
+set crossPlusFusionBegin 0x002f98d8
 
 // Original function definitions
 set CombineDetailsProc_getShdPersonaStatusDraw 0x003147d0
@@ -19,6 +40,7 @@ set MessageWindow_open 0x00310960
 set MessageWindow_isClosed 0x002bb680
 set MessageWindow_free 0x002bb550
 set MessageWindow_refresh 0x002bbcf0
+set MessageWindow_openFusionMessageNoRank 0x00310a10
 
 set ArrayList_create 0x002e6f00
 set ArrayList_add 0x002e6f90
@@ -37,6 +59,7 @@ set memcpy 0x0043f810
 set getGlobalPersonaInfo 0x002e48a0
 set findSkillIndex 0x0010ce10
 set playSdkListStateMoveSound 0x00354080
+set getPersonaRank 0x00105f50
 
 // Original globals
 set BUTTON_PRESS 0x008c024e
@@ -44,12 +67,13 @@ set BUTTON_PRESS 0x008c024e
 // Code caves for custom code
 set normalFusionGoBackPersonaResult 0x0094BF50
 set normalFusionInitCustomIgorTalk 0x0094C4AC
-set normalFusionHandlerCustomStateJump 0x0094C734
+set normalFusionHandlerCustomStateJump 0x0094C754
 set normalFusionDialogueInheritanceState 0x0094C970
 
 set normalFusionInheritanceState 0x0094CC60
-set createInheritanceArrayList 0x0094D260 // Will have to readjust offsets later...
+set createInheritanceArrayList 0x0094D260
 set goBackInheritanceMenu 0x0094E670
+set preBeginFusionHook 0x00951300
 
 // Custom globals
 set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
@@ -62,12 +86,19 @@ set globalSkillsList 0x0094BEF0
 
 // Constants
 set NORMAL_PERSONA_INFO_STATE 0x2d
-set NORMAL_IGOR_TALK_STATE 0x2f
-set NORMAL_PERSONA_FUSION_STATE 0x33
-set NORMAL_INHERITANCE_DIALOGUE_STATE 0x38
-set NORMAL_INHERITANCE_STATE 0x39
+set TRIANGLE_PERSONA_INFO_STATE 0x46
+set CROSSPLUS_PERSONA_INFO_STATE 0x57
 
+set NORMAL_IGOR_TALK_STATE 0x2f
 set TRIANGLE_IGOR_TALK_STATE 0x48
+set CROSSPLUS_IGOR_TALK_STATE 0x59
+
+set NORMAL_IGOR_CHECK_TALK_STATE 0x30
+set TRIANGLE_IGOR_CHECK_TALK_STATE 0x49
+set CROSSPLUS_IGOR_CHECK_TALK_STATE 0x5a
+
+set CUSTOM_INHERITANCE_DIALOGUE_STATE 0x60
+set CUSTOM_INHERITANCE_STATE 0x61
 
 
 ASM_START inheritanceResultPersonaAddSkill
@@ -84,6 +115,11 @@ ASM_START crossPressTriangleFusion
     li $a0, 0x3
 ASM_END
 
+ASM_START crossPressCrossPlusFusion
+    jal normalFusionGoBackPersonaResult
+    lb $a0, 0x1a($s0)
+ASM_END
+
 // a0 -> Result persona position
 ASM_START normalFusionGoBackPersonaResult
     addiu $sp, $sp, -0xD0
@@ -95,15 +131,54 @@ ASM_START normalFusionGoBackPersonaResult
     nop
     li $s5, NORMAL_IGOR_TALK_STATE
     move $s7, $s2
+    li $s4, 0x151
+    li $v0, 0x186
+    mtc1 $v0, $f20
+    nop
+    b assignmentsDone
+    nop
 
     notNormalFusion: li $v0, 0x3
     bne $v0, $a0, notTriangleFusion
     nop
     li $s5, TRIANGLE_IGOR_TALK_STATE
     move $s7, $s1
-    
+    li $s4, 0x152
+    li $v0, 0x1AB
+    mtc1 $v0, $f20
+    nop
+    b assignmentsDone
+    nop
 
-    notTriangleFusion: lw $a0, 0x148($s7) // Get CombineDetailsProc ref
+    notTriangleFusion: move $s7, $s0
+    li $s5, CROSSPLUS_IGOR_TALK_STATE
+
+    li $v0, 0x4
+    bne $v0, $a0, notCrossFusion
+    nop
+    li $s4, 0x153
+    li $v0, 0x1BE
+    mtc1 $v0, $f20
+    nop
+    b assignmentsDone
+    nop
+    
+    notCrossFusion: li $v0, 0x5
+    bne $v0, $a0, notPentaFusion
+    nop
+    li $s4, 0x154
+    li $v0, 0x1CD
+    mtc1 $v0, $f20
+    nop
+    b assignmentsDone
+    nop
+
+    notPentaFusion: li $s4, 0x155
+    li $v0, 0x1D8
+    mtc1 $v0, $f20
+    nop
+
+    assignmentsDone: lw $a0, 0x148($s7) // Get CombineDetailsProc ref
     jal CombineDetailsProc_getShdPersonaStatusDraw
     nop
     move $a0, $v0
@@ -132,27 +207,18 @@ ASM_START normalFusionGoBackPersonaResult
     // Next state we'll want is s6 (result persona), rest of code is asm code to visually move the index ported to clps2c
     move $v0, $s6
     sb $v0, 0x122($s7)
-    li $a0, 0x151
+    move $a0, $s4
     jal 0x002b6150
     nop
     daddu $s0, $v0, $zero
     daddu s0,v0,zero
-    lb $v1,0x122($s7)
-    sll $v0,$v1,0x03
-    addu $v0,$v0,$v1
-    sll $v0,$v0,0x03
-    subu $v0,$v0,v1
-    sll $v0,$v0,0x01
-    addiu $v0,$v0,0x6A
-    mtc1 $v0,$f00
-    nop 
-    cvt.s.w $f12,$f00
+    cvt.s.w $f12,$f20
     lui $v0,0x4180
     mtc1 $v0,$f13
     addiu $a0,$sp,0x188
     jal 0x002b2970
     nop
-    addiu $a0,$zero,0x151
+    addu $a0,$zero,$s4
     ldr $a1,0x38($s0)
     ldl $a1,0x3F($s0)
     ld $a2,0x188($sp)
@@ -165,16 +231,7 @@ ASM_START normalFusionGoBackPersonaResult
     jal 0x002b6150
     nop 
     daddu $s0,$v0,$zero
-    lb $v1,0x122($s7)
-    sll $v0,$v1,0x03
-    addu $v0,$v0,$v1
-    sll $v0,$v0,0x03
-    subu $v0,$v0,$v1
-    sll $v0,$v0,0x01
-    addiu $v0,$v0,0x6A
-    mtc1 $v0,$f00
-    nop 
-    cvt.s.w $f12,$f00
+    cvt.s.w $f12,$f20
     lui $v0,0x4180
     mtc1 $v0,$f13
     addiu $a0,$sp,0x180
@@ -280,14 +337,73 @@ ASM_START normalFusionGoBackPersonaResult
 ASM_END
 
 
-
 ASM_START normalFusionInitIgorTalk
     j normalFusionInitCustomIgorTalk
-    nop
+    li $a0, 0x2
 ASM_END
 
+ASM_START triangleFusionInitIgorTalk
+    j normalFusionInitCustomIgorTalk
+    li $a0, 0x3
+ASM_END
+
+ASM_START crossPlusFusionInitIgorTalk
+    j normalFusionInitCustomIgorTalk
+    lb $a0, 0x1a($s0)
+ASM_END
+
+// a0 -> Num personas involved in fusion
 ASM_START normalFusionInitCustomIgorTalk
-    addiu $sp,$sp,-0x60
+    move $s6, $a0
+    li $v0, 0x2
+    bne $s6, $v0, notNormalFusion
+    nop
+    li $fp, NORMAL_IGOR_CHECK_TALK_STATE
+    b normalTriangleFusion
+    nop
+
+    notNormalFusion: li $v0, 0x3
+    bne $s6, $v0, crossPlusFusion
+    nop
+    move $s2, $s1
+    li $fp, TRIANGLE_IGOR_CHECK_TALK_STATE
+    b normalTriangleFusion
+    nop
+
+    crossPlusFusion: move $s2, $s0
+    li $fp, CROSSPLUS_IGOR_CHECK_TALK_STATE
+    li $v0, -0x30
+    mult $v0, $s6
+    mflo $v0
+    addu $sp,$sp,$v0 // Each persona is 0x30 long
+    move $s7, $zero
+
+    copyNextPersona: lb $v0, 0x2fa($s2)
+    addiu $v0, $v0, 0x1
+    dsll32 $a0,$v0,0x18
+    dsra32 $a0,$a0,0x18
+    move $a1, $s7
+    jal getGlobalPersonaInfo // Nth persona
+    nop
+
+    li $v1, 0x30
+    mult $s7, $v1
+    mflo $v1
+    addu $a0, $sp, v1
+    move $a1, $v0
+    li $a2, 0x30
+    jal memcpy
+    nop
+    addiu $s7, $s7, 0x1
+    bne $s7, $s6, copyNextPersona
+    nop
+    b resultPersona
+    nop
+    
+    normalTriangleFusion: li $v0, -0x30
+    mult $v0, $s6
+    mflo $v0
+    addu $sp,$sp,$v0 // Each persona is 0x30 long
 
     move $a0, $zero
     lb $a1, 0x128($s2)
@@ -309,28 +425,76 @@ ASM_START normalFusionInitCustomIgorTalk
     jal memcpy
     nop
 
-    lh $a0, 0x2f9($s2)
+    li $v0, 0x3
+    blt $s6, $v0, resultPersona
+    nop
+
+    move $a0, $zero
+    lb $a1, 0x129($s2)
+    jal getGlobalPersonaInfo // 3rd persona
+    nop
+    addiu $a0, $sp, 0x60
+    move $a1, $v0
+    li $a2, 0x30
+    jal memcpy
+    nop
+
+    resultPersona: lh $a0, 0x2f9($s2)
     lh $a1, 0x2fa($s2)
     jal getGlobalPersonaInfo // Result persona
     nop
 
-    move $s5, $v0 // Save result persona for later
+    move $s7, $v0 // Save result persona for later
     move $a0, $v0
     move $a1, $sp
-    li $a2, 0x2
+    move $a2, $s6 // Number of personas in fusion
     jal createInheritanceArrayList
     nop
-    addiu $sp,$sp,0x60
+
+    li $a0, 0x30
+    mult $a0, $s6
+    mflo $a0
+    addu $sp,$sp,$a0 // Each persona is 0x30 long
 
     bne $v1, $zero, gotoInheritanceStates
     nop
-    move $a0, $v0
-    jal ArrayList_free // Free list, not needed anymore
+
+    li $v1, globalInheritanceList
+    sw $v0, 0x0($v1)
+
+    li $v0, globalNumInheritableSkills
+    sh $zero, 0x0($v0) // Store we have no skills to inherit
+
+    lhu $a0, 0x2($s7) // Do original behaviour and change state to usual igor talk
+    move $s5, $a0
+    jal getPersonaRank
     nop
-    move $a0, $s0 // No skills to inherit!! Do original behaviour and jump to usual igor talk
-    jal 0x00105f50
-    nop
-    j igorSocialLinkBonusTalk
+
+    dsll32 $v0,$v0,0x18
+    dsra32 $v0,$v0,0x18
+    bne $v0,$zero,personaHasRank
+    nop 
+    daddu $a0,$s4,$zero
+    daddu $a1,$s5,$zero
+    jal MessageWindow_openFusionMessageNoRank
+    nop 
+    beq $zero,$zero,changeState
+    nop 
+    personaHasRank: daddu $a0,$s5,$zero
+    jal getPersonaRank
+    nop 
+    dsll32 $v0,$v0,0x18
+    dsra32 $v0,$v0,0x18
+    addiu $v0,$v0,0x2E
+    dsll32 $a1,$v0,0x18
+    dsra32 $a1,$a1,0x18
+    daddu $a0,$s4,$zero
+    addiu $a2,$zero,0x1
+    jal MessageWindow_open
+    nop 
+
+    changeState: sb $fp,0x1($s2) // Change state
+    b hookEndSkipStateChange
     nop
 
     gotoInheritanceStates: li $a0, globalInheritanceList // Save inheritance list globally for later, and init list values
@@ -343,7 +507,7 @@ ASM_START normalFusionInitCustomIgorTalk
     jal memset // Reset all parameters to 0
     nop
 
-    move $a0, $s5
+    move $a0, $s7
     li $a1, -0x1
     jal findSkillIndex // Find index of first inheritance skill
     nop
@@ -355,9 +519,21 @@ ASM_START normalFusionInitCustomIgorTalk
     move $a2, $zero
     jal MessageWindow_open
     nop
-    li $v1, NORMAL_INHERITANCE_DIALOGUE_STATE
+
+    li $v1, CUSTOM_INHERITANCE_DIALOGUE_STATE
     sb $v1, 0x1($s2)
+
+    hookEndSkipStateChange: li $v0, 0x2
+    bne $v0, $s6, notNormalFusionEnd
+    nop
     j normalFusionHandlerEnd
+    nop
+    notNormalFusionEnd: li $v0, 0x3
+    bne $v0, $s6, crossPlusFusionEnd
+    nop
+    j triangleFusionHandlerEnd
+    nop
+    crossPlusFusionEnd: j crossPlusFusionHandlerEnd
     nop
 ASM_END
 
@@ -366,19 +542,49 @@ ASM_START normalFusionHandlerDefaultStateJump
     nop
 ASM_END
 
-ASM_START normalFusionHandlerStateJump
-    j normalFusionHandlerCustomStateJump
+ASM_START triangleFusionHandlerDefaultStateJump
+    nop // We will handle default case ourselves
     nop
 ASM_END
 
+ASM_START crossPlusFusionHandlerDefaultStateJump
+    nop // We will handle default case ourselves
+    nop
+ASM_END
+
+ASM_START normalFusionHandlerStateJump
+    j normalFusionHandlerCustomStateJump
+    li $a0, 0x2
+ASM_END
+
+ASM_START triangleFusionHandlerStateJump
+    j normalFusionHandlerCustomStateJump
+    li $a0, 0x3
+ASM_END
+
+ASM_START crossPlusFusionHandlerStateJump
+    j normalFusionHandlerCustomStateJump
+    lb $a0, 0x1a($s0)
+ASM_END
+
+// a0 -> Fusion handler
 ASM_START normalFusionHandlerCustomStateJump
-    lbu $a0, 0x1($s2)
-    li $a1, NORMAL_INHERITANCE_DIALOGUE_STATE
+    move $fp, $a0
+    li $a0, 0x2
+    beq $fp, $a0, loadState
+    nop
+    li $a0, 0x3
+    beq $fp, $a0, loadState
+    move $s2, $s1
+    move $s2, $s0
+
+    loadState: lbu $a0, 0x1($s2)
+    li $a1, CUSTOM_INHERITANCE_DIALOGUE_STATE
     bne $a0, $a1, notDialogueInheritanceState
     nop
     j normalFusionDialogueInheritanceState
     nop
-    notDialogueInheritanceState: li $a1, NORMAL_INHERITANCE_STATE
+    notDialogueInheritanceState: li $a1, CUSTOM_INHERITANCE_STATE
     bne $a0, $a1, notInheritanceState
     nop
     j normalFusionInheritanceState
@@ -389,7 +595,21 @@ ASM_START normalFusionHandlerCustomStateJump
 ASM_END
 
 ASM_START normalFusionDialogueInheritanceState
-    lb $a0, 0xd($s2)
+    li $a0, 0x2
+    bne $fp, $a0, notNormalFusion
+    nop
+    li $s0, normalFusionHandlerEnd
+    b continueFunction
+    nop
+    notNormalFusion: li $a0, 0x3
+    bne $fp, $a0, notTriangleFusion
+    nop
+    li $s0, triangleFusionHandlerEnd
+    b continueFunction
+    nop
+    notTriangleFusion: li $s0, crossPlusFusionHandlerEnd
+
+    continueFunction: lb $a0, 0xd($s2)
     jal MessageWindow_isClosed
     nop
     bne $v0, $zero, windowNotClosed
@@ -398,19 +618,39 @@ ASM_START normalFusionDialogueInheritanceState
     jal MessageWindow_free // Window closed
     nop
 
-    li $v1, NORMAL_INHERITANCE_STATE // Goto inheritance menu state
+    li $v1, CUSTOM_INHERITANCE_STATE // Goto inheritance menu state
     sb $v1, 0x1($s2)
-    j normalFusionHandlerEnd
+    jr $s0
     nop
     windowNotClosed: lb $a0, 0xd($s2) // Refresh window while opened
     jal MessageWindow_refresh
     nop
-    j normalFusionHandlerEnd
+    jr $s0
     nop
 ASM_END
 
 ASM_START normalFusionInheritanceState
-    li $a2, BUTTON_PRESS
+    li $a0, 0x2
+    bne $fp, $a0, notNormalFusion
+    nop
+    li $s0, NORMAL_PERSONA_INFO_STATE
+    li $s3, normalFusionHandlerEnd
+    li $fp, NORMAL_IGOR_CHECK_TALK_STATE
+    b continueFunction
+    nop
+    notNormalFusion: li $a0, 0x3
+    bne $fp, $a0, notTriangleFusion
+    nop
+    li $s0, TRIANGLE_PERSONA_INFO_STATE
+    li $s3, triangleFusionHandlerEnd
+    li $fp, TRIANGLE_IGOR_CHECK_TALK_STATE
+    b continueFunction
+    nop
+    notTriangleFusion: li $s0, CROSSPLUS_PERSONA_INFO_STATE
+    li $s3, crossPlusFusionHandlerEnd
+    li $fp, CROSSPLUS_IGOR_CHECK_TALK_STATE
+
+    continueFunction: li $a2, BUTTON_PRESS
     lh $a1, 0x0($a2)
     andi $v1, $a1, 0x20
     beq $v1, $zero, circleNotPressed
@@ -432,13 +672,12 @@ ASM_START normalFusionInheritanceState
     jal ArrayList_free
     nop
 
-    li $v1, NORMAL_PERSONA_INFO_STATE
+    move $v1, $s0
     sb $v1, 0x1($s2)
-    j normalFusionHandlerEnd
+    jr $s3
     nop
     removeLastSkill: addi $s5, -0x1
     sh $s5, 0x0($a0)
-
 
     li $v0, globalInheritanceList
     lw $v0, 0x0($v0)
@@ -531,7 +770,7 @@ ASM_START normalFusionInheritanceState
     sh $v1, 0x0($v0)
 
     indexUpdated: li $v1, 0x5
-    j normalFusionHandlerEnd
+    jr $s3
     nop
 
     circleNotPressed: andi $v1, $a1, 0x40
@@ -623,22 +862,41 @@ ASM_START normalFusionInheritanceState
     bne $v1, $a0, noFusionEnd
     nop
 
-    move $a0, $v0
-    jal ArrayList_free // Free list, not needed anymore
-    nop
-
     lb $a1, 0x2fa($s2)
     lb $a0, 0x2f9($s2)
     jal getGlobalPersonaInfo // Get result persona info for rank checking
     nop
-    lhu $s0, 0x2($v0)
-    move $a0, $s0 // Do original behaviour and jump to usual igor talk
-    jal 0x00105f50
-    nop
-    j igorSocialLinkBonusTalk
+
+    lhu $a0, 0x2($v0) // Do original behaviour and change state to usual igor talk
+    move $s5, $a0
+    jal getPersonaRank
     nop
 
-    noFusionEnd: j normalFusionHandlerEnd
+    dsll32 $v0,$v0,0x18
+    dsra32 $v0,$v0,0x18
+    bne $v0,$zero,personaHasRank
+    nop 
+    daddu $a0,$s4,$zero
+    daddu $a1,$s5,$zero
+    jal MessageWindow_openFusionMessageNoRank
+    nop 
+    beq $zero,$zero,changeState
+    nop 
+    personaHasRank: daddu $a0,$s5,$zero
+    jal getPersonaRank
+    nop 
+    dsll32 $v0,$v0,0x18
+    dsra32 $v0,$v0,0x18
+    addiu $v0,$v0,0x2E
+    dsll32 $a1,$v0,0x18
+    dsra32 $a1,$a1,0x18
+    daddu $a0,$s4,$zero
+    addiu $a2,$zero,0x1
+    jal MessageWindow_open
+    nop 
+
+    changeState: sb $fp,0x1($s2) // Change state to igor dialogue
+    noFusionEnd: jr $s3
     nop
     
     crossNotPressed: addiu $sp,$sp,-0x30
@@ -682,7 +940,7 @@ ASM_START normalFusionInheritanceState
     nop
 
     keepInheritanceState: addiu $sp,$sp,0x30
-    j normalFusionHandlerEnd
+    jr $s3
     nop
 ASM_END
 
@@ -835,18 +1093,57 @@ ASM_START createInheritanceArrayList
     nop
 ASM_END
 
-ASM_START igorSocialLinkBonusTalkConfirmation
-    li $v0, NORMAL_PERSONA_FUSION_STATE
-    sb $v0, 0x1($s2)
-ASM_END
-
-ASM_START igorSocialLinkBonusTalkDenial
+ASM_START normalIgorSocialLinkBonusTalkDenial
     j goBackInheritanceMenu
-    nop
+    li $a0, 0x2
 ASM_END
 
+ASM_START triangleIgorSocialLinkBonusTalkDenial
+    j goBackInheritanceMenu
+    li $a0, 0x3
+ASM_END
+
+ASM_START crossPlusIgorSocialLinkBonusTalkDenial
+    j goBackInheritanceMenu
+    lb $a0, 0x1a($s0)
+ASM_END
+
+// a0 -> Number of personas in fusion
 ASM_START goBackInheritanceMenu
-    li $a0, globalSelectedSkills
+    li $v0, 0x2
+    bne $v0, $a0, notNormalFusion
+    nop
+    li $fp, normalFusionHandlerEnd
+    li $s3, NORMAL_PERSONA_INFO_STATE
+    b continueFunction
+    nop
+    notNormalFusion: li $v0, 0x3
+    bne $v0, $a0, notTriangleFusion
+    nop
+    li $fp, triangleFusionHandlerEnd
+    li $s3, TRIANGLE_PERSONA_INFO_STATE
+    move $s2, $s1
+    b continueFunction
+    nop
+    notTriangleFusion: li $fp, crossPlusFusionHandlerEnd
+    li $s3, CROSSPLUS_PERSONA_INFO_STATE
+    move $s2, $s0
+
+    continueFunction: li $v0, globalNumInheritableSkills
+    lh $v0, 0x0($v0)
+    bne $v0, $zero, deleteLastSkill
+    nop
+
+    li $a0, globalInheritanceList
+    lw $a0, 0x0($a0)
+    jal ArrayList_free // Free list, not needed anymore
+    nop
+
+    sh $s3, 0x1($s2) // Go directly to persona info state
+    jr $fp
+    nop
+
+    deleteLastSkill: li $a0, globalSelectedSkills
     lh $s5, 0x0($a0)
     addi $s5, -0x1
     sh $s5, 0x0($a0)
@@ -889,8 +1186,61 @@ ASM_START goBackInheritanceMenu
     addu $v0, $v0, $v1
     sh $zero, 0x0($v0) // Reset last skill of our global inherited skills
 
-    li $v0, NORMAL_INHERITANCE_STATE
+    li $v0, CUSTOM_INHERITANCE_STATE
     sb $v0, 0x1($s2)
-    j igorSocialLinkBonusTalkDenialEnd
+    lb $a0, 0xd($s2)
+    jal MessageWindow_free
+    nop
+
+    jr $fp
+    nop
+ASM_END
+
+
+ASM_START normalFusionBegin
+    j preBeginFusionHook
+    li $v1, 0x2
+ASM_END
+
+ASM_START triangleFusionBegin
+    j preBeginFusionHook
+    li $v1, 0x3
+ASM_END
+
+ASM_START crossPlusFusionBegin
+    j preBeginFusionHook
+    lb $v1, 0x1a($s0)
+ASM_END
+
+// v1 -> Number of personas in fusion
+ASM_START preBeginFusionHook
+    li $v0, 0x2
+    bne $v0, $v1, notNormalFusion
+    nop
+    li $fp, normalFusionHandlerEnd
+    b continueFunction
+    nop
+    notNormalFusion: li $v0, 0x3
+    bne $v0, $v1, notTriangleFusion
+    nop
+    li $fp, triangleFusionHandlerEnd
+    move $s2, $s1
+    b continueFunction
+    nop
+    notTriangleFusion: li $fp, crossPlusFusionHandlerEnd
+    move $s2, $s0
+
+    continueFunction: jal 0x00122520
+    nop
+    lb $a0, 0xd($s2)
+    jal MessageWindow_free
+    nop
+
+    li $a0, globalInheritanceList
+    lw $a0, 0x0($a0)
+    jal ArrayList_free // Free inheritance list just before fusing
+    nop
+
+    jr $fp
     nop
 ASM_END
