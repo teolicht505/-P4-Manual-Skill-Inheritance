@@ -35,6 +35,7 @@ set crossPlusFusionBegin 0x002f98d8
 // Original function definitions
 set CombineDetailsProc_getShdPersonaStatusDraw 0x003147d0
 set ShdPersonaStatusDraw_isInSkillInfo 0x0011c610
+set ShdPersona_drawDetailSkill 0x00114e50
 
 set MessageWindow_open 0x00310960
 set MessageWindow_isClosed 0x002bb680
@@ -74,6 +75,7 @@ set normalFusionInheritanceState 0x0094CC60
 set createInheritanceArrayList 0x0094D260
 set goBackInheritanceMenu 0x0094E670
 set preBeginFusionHook 0x00951300
+set ShdPersona_drawDetailSkillHook 0x00951700
 
 // Custom globals
 set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
@@ -100,9 +102,10 @@ set CROSSPLUS_IGOR_CHECK_TALK_STATE 0x5a
 set CUSTOM_INHERITANCE_DIALOGUE_STATE 0x60
 set CUSTOM_INHERITANCE_STATE 0x61
 
+set CUSTOM_INHERITANCE_DRAW_BIT 0x20000
 
 ASM_START inheritanceResultPersonaAddSkill
-    li $a1, 0xFFFF // Dummy skill id, does not show skill in view
+    li $a1, 0xFFFF // Dummy skill id, will not show skill in view
 ASM_END
 
 ASM_START crossPressNormalFusion
@@ -192,7 +195,7 @@ ASM_START normalFusionGoBackPersonaResult
     jal CombineDetailsProc_getShdPersonaStatusDraw
     nop
     move $a0, $v0
-    li $a1, 0x1
+    li $a1, 0x0 // Disable close sound
     jal 0x0011C6E0 // Send close notif to ShdPersonaStatusDraw
     nop
     lw $a0, 0x148($s7)
@@ -618,6 +621,15 @@ ASM_START normalFusionDialogueInheritanceState
     jal MessageWindow_free // Window closed
     nop
 
+    lw $a0, 0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop
+    lw $a0, 0x38($v0) // Get ShdPersona main object
+    lw $v0, 0x534($a0)
+    li $v1, CUSTOM_INHERITANCE_DRAW_BIT
+    or $v0, $v0, $v1
+    sw $v0, 0x534($a0) // Set inheritance draw bit (Unused bit in base game)
+
     li $v1, CUSTOM_INHERITANCE_STATE // Goto inheritance menu state
     sb $v1, 0x1($s2)
     jr $s0
@@ -671,6 +683,16 @@ ASM_START normalFusionInheritanceState
     lw $a0, 0x0($a0)
     jal ArrayList_free
     nop
+
+    lw $a0, 0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop
+    lw $a0, 0x38($v0) // Get ShdPersona main object
+    lw $v0, 0x534($a0)
+    li $v1, CUSTOM_INHERITANCE_DRAW_BIT
+    nor $v1, $zero, $v1
+    and $v0, $v0, $v1
+    sw $v0, 0x534($a0) // Clear inheritance draw bit (Unused bit in base game)
 
     move $v1, $s0
     sb $v1, 0x1($s2)
@@ -893,9 +915,18 @@ ASM_START normalFusionInheritanceState
     daddu $a0,$s4,$zero
     addiu $a2,$zero,0x1
     jal MessageWindow_open
-    nop 
+    nop
 
-    changeState: sb $fp,0x1($s2) // Change state to igor dialogue
+    changeState: lw $a0, 0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop
+    lw $a0, 0x38($v0) // Get ShdPersona main object
+    lw $v0, 0x534($a0)
+    li $v1, CUSTOM_INHERITANCE_DRAW_BIT
+    nor $v1, $zero, $v1
+    and $v0, $v0, $v1
+    sw $v0, 0x534($a0) // Clear inheritance draw bit (Unused bit in base game)
+    sb $fp,0x1($s2) // Change state to igor dialogue
     noFusionEnd: jr $s3
     nop
     
@@ -1192,6 +1223,15 @@ ASM_START goBackInheritanceMenu
     jal MessageWindow_free
     nop
 
+    lw $a0, 0x148($s2)
+    jal CombineDetailsProc_getShdPersonaStatusDraw
+    nop
+    lw $a0, 0x38($v0) // Get ShdPersona main object
+    lw $v0, 0x534($a0)
+    li $v1, CUSTOM_INHERITANCE_DRAW_BIT
+    or $v0, $v0, $v1
+    sw $v0, 0x534($a0) // Set inheritance draw bit (Unused bit in base game)
+
     jr $fp
     nop
 ASM_END
@@ -1242,5 +1282,22 @@ ASM_START preBeginFusionHook
     nop
 
     jr $fp
+    nop
+ASM_END
+
+
+ASM_START ShdPersona_drawDetailSkill
+    j ShdPersona_drawDetailSkillHook
+    nop
+ASM_END
+
+ASM_START ShdPersona_drawDetailSkillHook
+    li $v0, 0xFFFF
+    bne $v0, $a2, drawDetailSkill 
+    nop
+    move $a2, $zero // If we are trying to draw our custom skill change skill id to 0, blank skill (we avoid TLB misses this way, safer)
+    drawDetailSkill: addiu sp,sp,-0x70
+    sd ra,0x50(sp)
+    j ShdPersona_drawDetailSkill + 0x8
     nop
 ASM_END

@@ -1,1 +1,2 @@
+include "drawManualInheritance.clps2c"
 include "inheritanceLogic.clps2c"
