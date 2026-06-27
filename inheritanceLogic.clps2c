@@ -473,7 +473,7 @@ ASM_START normalFusionInitCustomIgorTalk
     daddu $a1,$s5,$zero
     jal MessageWindow_openFusionMessageNoRank
     nop 
-    beq $zero,$zero,changeState
+    b changeState
     nop 
     personaHasRank: daddu $a0,$s5,$zero
     jal getPersonaRank
@@ -1163,6 +1163,10 @@ ASM_START goBackInheritanceMenu
     li $a0, globalInheritanceList
     lw $a0, 0x0($a0)
     jal ArrayList_free // Free list, not needed anymore
+    nop
+
+    lb $a0, 0xd($s2)
+    jal MessageWindow_free
     nop
 
     sh $s3, 0x1($s2) // Go directly to persona info state
