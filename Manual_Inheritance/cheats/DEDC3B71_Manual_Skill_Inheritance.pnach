@@ -1,3 +1,5 @@
+patch=0,EE,0070C5D4,word,00A38A00
+
 patch=1,EE,20313034,extended,3405FFFF
 patch=1,EE,202EF978,extended,0C252FD4
 patch=1,EE,202EF97C,extended,34040002
