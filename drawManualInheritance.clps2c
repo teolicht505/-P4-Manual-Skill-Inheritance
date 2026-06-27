@@ -13,14 +13,6 @@ set printSkillName 0x00275020
 set mainPersonaInheritanceDraw 0x00952000
 set isSkillInherited 0x00951E40
 
-// Custom globals
-set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
-set globalNumInheritableSkills 0x0094BEE4
-set globalInheritanceSubIndex 0x0094BEE8
-set globalInheritanceSuperIndex 0x0094BEEA
-set globalSelectedSkills 0x0094BEEC
-set globalIndexFirstInheritedSkill 0x0094BEEE
-set globalSkillsList 0x0094BEF0
 
 ASM_START shdPersonaEndHook
     j mainPersonaInheritanceDraw
@@ -69,28 +61,6 @@ ASM_START mainPersonaInheritanceDraw
     jal Spr_getSprPointer // Get init/c_equip_01.spr
     nop 
     daddu $s1,$v0,$zero // Save to $s1
-    // f12 -> 19 -> 41980000
-    // f13 -> 193 -> 43410000
-
-    //li $v0,0x41980000
-    //mtc1 $v0,$f12
-    //li $v0,0x43CD8000
-    //mtc1 $v0,$f13
-    //move $a3, $zero
-    //move $a0,$zero
-    //move $a1,$s0
-    //addiu $a2,$zero,0x61 // Spr id
-    //addiu $t0,$zero,0x2D // Red
-    //daddu $t1,$t0,$zero // Green
-    //daddu $t2,$t0,$zero // Blue
-    //mtc1 $zero, $f14
-    //daddu t3,zero,zero
-    //jal Spr_draw
-    //nop
-
-
-    // f12 -> 411 -> 43CD8000
-    // f13 -> 193 -> 43410000
 
     // Inheritance main container
     li $v0,0x44110000
@@ -144,9 +114,6 @@ ASM_START mainPersonaInheritanceDraw
     nop
 
 
-    // f12 -> 17 -> 41880000
-    // f13 -> 194 -> 43420000
-
     // Inheritance Info text
     li $v0,0x41B00000
     mtc1 $v0,$f12
@@ -165,9 +132,9 @@ ASM_START mainPersonaInheritanceDraw
     nop
 
     // Inheritance help text
-    li $v0,0x41D00000
+    li $v0,0x41E80000
     mtc1 $v0,$f12
-    li $v0,0x43160000
+    li $v0,0x43170000
     mtc1 $v0,$f13
     move $a3, $zero
     move $a0,$zero
@@ -188,6 +155,7 @@ ASM_START mainPersonaInheritanceDraw
     li $s6, 0x1B // Box separation
     li $s5, globalInheritanceList
     lw $s5, 0x0($s5)
+    lh $s3, 0x60($s5)
     li $v0, globalInheritanceSuperIndex
     lh $v0, 0x0($v0)
     li $v1, globalInheritanceSubIndex
@@ -316,12 +284,64 @@ ASM_START mainPersonaInheritanceDraw
     bne $s2, $v0, drawNextSkill
     nop
 
-    noMoreSkillsToDraw: andi $a3,$s4,0xFFFF
+    noMoreSkillsToDraw: li $v0, 0x4
+    bge $v0, $s3, drawCurrentSkillDescription
+    nop
+    // Draw slider
+    li $v0,0x440E4000
+    mtc1 $v0,$f12
+    li $v0,0x431B0000
+    mtc1 $v0,$f13
+    move $a3, $zero
+    move $a0,$zero
+    move $a1,$s0
+    addiu $a2,$zero,0xD4 // Spr id
+    addiu $t0,$zero,0xFF // Red
+    addiu $t1,$zero,0xFF // Green
+    addiu $t2,$zero,0x81 // Blue
+    mtc1 $zero, $f14
+    daddu t3,zero,zero
+    jal Spr_draw
+    nop
+
+    // Calculate Y based on current super index position
+    addiu $v0, $s3, -0x5
+    blez $v0, sliderNoExtraElements
+    nop
+    li $v1, globalInheritanceSuperIndex
+    lh $v1, 0x0($v1)
+    addiu $t0, $zero, 0x64
+    mult $v1, $t0
+    mflo $t1
+    div $t1, $v0
+    nop
+    mflo $t1
+    b sliderHaveRatio
+    nop
+    sliderNoExtraElements: move $t1, $zero
+    sliderHaveRatio: mtc1 $t1, $f20
+    cvt.s.w $f20, $f20
+    li $v0, 0x431C0000
+    mtc1 $v0, $f21
+    add.s $f13, $f21, $f20 // Final Y Position
+    li $v0,0x440E399A 
+    mtc1 $v0,$f12 // X Position
+    move $a3, $zero
+    move $a0,$zero
+    move $a1,$s0
+    addiu $a2,$zero,0xD5 // Spr id
+    addiu $t0,$zero,0x2D // Red
+    addiu $t1,$zero,0x2D // Green
+    addiu $t2,$zero,0x2D // Blue
+    mtc1 $zero, $f14
+    daddu t3,zero,zero
+    jal Spr_draw
+    nop
+
+    drawCurrentSkillDescription: andi $a3,$s4,0xFFFF
     beq $a3,$zero,endDraw
     nop 
 
-    // f12 -> 80 -> 42A00000
-    // f13 -> 216 -> 43580000
     li $v0,0x42000000
     mtc1 $v0,$f12
     li $v0,0x43580000

@@ -1,2 +1,3 @@
-include "drawManualInheritance.clps2c"
+include "customGlobals.clps2c"
 include "inheritanceLogic.clps2c"
+include "drawManualInheritance.clps2c"

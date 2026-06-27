@@ -1,0 +1,7 @@
+set globalInheritanceList 0x0094BEE0 // ArrayList -> 0x0 - 0x5f array of skill id shorts | 0x60 - 0x61 short for array size
+set globalNumInheritableSkills 0x0094BEE4 // Number of inheritable skills
+set globalInheritanceSubIndex 0x0094BEE8 // Sub-index of inheritance list
+set globalInheritanceSuperIndex 0x0094BEEA // Super-index of inheritance list
+set globalSelectedSkills 0x0094BEEC // Number of already selected skills
+set globalIndexFirstInheritedSkill 0x0094BEEE // Index of first inherited skill in result persona
+set globalSkillsList 0x0094BEF0 // List of already selected skills
